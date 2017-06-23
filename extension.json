@@ -1,0 +1,6 @@
+{
+  "id": "approvalExtension",
+  "name": "Approval Extension",
+  "src": "http://localhost:3000/",
+  "fieldTypes": ["Boolean"]
+}

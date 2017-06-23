@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <!-- Core extensions CSS from Contentful. -->
+  <link rel="stylesheet" href="//contentful.github.io/ui-extensions-sdk/cf-extension.css">
+  <!-- Styles for added / removed text -->
+</head>
+
+<body>
+  <!-- Extension DOM Elements -->
+  <div class="approvalExtension">
+    <form id="approvalExtension-form">
+      <p>&nbsp</p>
+      <div class="cf-form-option">
+        <input id="checkbox" type="checkbox">
+        <label for="checkbox">Approved</label>
+      </div>
+    </form>
+    <div id="approvalExtension-modal" style="display: none">
+      <p>Are your sure?</p>
+      <p>
+        <button id="approvalExtension-confirm" class="cf-btn-primary">Yes</button>
+        <button id="approvalExtension-cancel" class="cf-btn-secondary">Cancel</button>
+      </p>
+    </div>
+  </div>
+  <!-- Contenful UI Extensions SDK API -->
+  <script src="https://unpkg.com/contentful-ui-extensions-sdk"></script>
+
+  <!-- Approval UI Extension -->
+  <script>
+  function approvalExtension(extensionsApi) {
+    // extensionsApi.window.startAutoResizer()
+    extensionsApi.window.updateHeight(100)
+    // DOM elements.
+    var checkboxEl = document.getElementById('checkbox')
+    // Disable the input as we need to wait for an async call to load the published entry.
+    checkboxEl.disabled = true
+    var entry = extensionsApi.entry
+    var field = extensionsApi.field
+    var space = extensionsApi.space
+    checkboxEl.checked = field._value
+    // Currently published version of entry.
+    var publishedVersion = entry.getSys().publishedVersion
+    var publishedValue
+    // Current locale
+    var fieldLocale = field.locale
+    var fieldId = field.id
+    // Callbacks for changes on the field or the entry.sys object.
+    // Detach functions will be used to clean up the callbacks.
+    var detachValueChanged = field.onValueChanged(onValueChanged)
+    var detachSysChanged = entry.onSysChanged(onSysChanged)
+    window.addEventListener('onbeforeunload', onBeforeUnloadHandler)
+    checkboxEl.addEventListener('change', changeHandler)
+    document.getElementById('approvalExtension-confirm').addEventListener('click', unpublish)
+    document.getElementById('approvalExtension-cancel').addEventListener('click', cancelUnpublish)
+    if (publishedVersion) {
+      // Load published value from CDA.
+      loadPublishedValue(entry.getSys().id).then(entries => {
+        publishedValue = entries.items[0].fields[fieldId][fieldLocale]
+        checkboxEl.disabled = false
+      }).catch(console.log)
+    } else {
+      checkboxEl.disabled = false
+    }
+    /**
+     * Event handler for keyboard input.
+     * @param event The event object.
+     */
+    function changeHandler() {
+      console.log('changeHandler')
+      if (checkboxEl.checked) {
+        field.setValue(checkboxEl.checked)
+      } else {
+        confirmUnpublish()
+      }
+    }
+    /**
+     * Event handler triggered before the window unloads.
+     * @param event The event object.
+     */
+    function onBeforeUnloadHandler() {
+      window.removeEventListener('onbeforeunload', onBeforeUnloadHandler)
+      checkboxEl.removeEventListener('input', changeHandler)
+      detachValueChanged()
+      detachSysChanged()
+    }
+    /**
+     * Gets the published value from the API.
+     * @param entryId The id of the entry to retrieve.
+     * @return Promise A Promise object of the call.
+     */
+    function loadPublishedValue(entryId) {
+      return extensionsApi.space.getPublishedEntries({
+        'sys.id': entryId
+      })
+    }
+    /**
+     * Calls the callback every time the value of the field is changed by some external event
+     * (e.g. when multiple editors are working on the same entry).
+     * @param val The newly changed value.
+     */
+    function onValueChanged(val) {
+      if (val) {
+        checkboxEl.checked = val
+      }
+    }
+    /**
+     * Calls the callback every time the value of the system object is changed
+     * @param sys The sys object of the entry.
+     */
+    function onSysChanged(sys) {
+      if (sys.publishedVersion && publishedVersion !== sys.publishedVersion) {
+        publishedValue = checkboxEl.checked
+        publishedVersion = sys.publishedVersion
+      }
+    }
+
+    var form = document.getElementById('approvalExtension-form')
+    var modal = document.getElementById('approvalExtension-modal')
+
+    function confirmUnpublish() {
+      form.style.display = 'none'
+      modal.style.display = ''
+    }
+
+    function unpublish() {
+      space.unpublishEntry(entry.getSys().id)
+      field.removeValue()
+      checkboxEl.checked = false
+      form.style.display = ''
+      modal.style.display = 'none'
+    }
+
+    function cancelUnpublish() {
+      checkboxEl.checked = true
+      form.style.display = ''
+      modal.style.display = 'none'
+    }
+  }
+  window.contentfulExtension.init(approvalExtension)
+
+  </script>
+</body>
+
+</html>
+
